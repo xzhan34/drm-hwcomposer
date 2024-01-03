@@ -17,6 +17,8 @@
 #ifndef ANDROID_DRM_PLANE_H_
 #define ANDROID_DRM_PLANE_H_
 #include <cstdint>
+#pragma once
+
 #include <xf86drmMode.h>
 
 #include <vector>

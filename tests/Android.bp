@@ -35,10 +35,16 @@ cc_test {
 cc_test {
     name: "hwc-drm-uevent-print",
 
-    srcs: ["uevent_print.cpp"],
+    srcs: [
+        ":drm_hwcomposer_fd",
+        "uevent_print.cpp",
+    ],
 
     vendor: true,
-    header_libs: ["libhardware_headers"],
+    header_libs: [
+        "drm_hwcomposer_headers",
+        "libhardware_headers",
+    ],
     shared_libs: ["liblog"],
     include_dirs: [
         "vendor/intel/external/drm-hwcomposer",

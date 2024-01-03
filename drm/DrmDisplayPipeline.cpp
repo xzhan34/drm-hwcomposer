@@ -86,19 +86,19 @@ static auto TryCreatePipeline(DrmDevice &dev, DrmConnector &connector,
     return {};
   }
 
-  if (primary_planes.size() > 1) {
-    ALOGE("Found more than 1 primary plane for CRTC %d", crtc.GetId());
-    return {};
+  for (const auto &plane : primary_planes) {
+    pipe->primary_plane = plane->BindPipeline(pipe.get());
+    if (pipe->primary_plane) {
+      break;
+    }
   }
 
-  pipe->primary_plane = primary_planes[0]->BindPipeline(pipe.get());
   if (!pipe->primary_plane) {
-    ALOGE("Primary plane %d is already owned. Internal error.",
-          primary_planes[0]->GetId());
+    ALOGE("Failed to bind primary plane");
     return {};
   }
 
-  pipe->atomic_state_manager = std::make_unique<DrmAtomicStateManager>(
+  pipe->atomic_state_manager = DrmAtomicStateManager::CreateInstance(
       pipe.get());
 
   return pipe;
@@ -173,10 +173,13 @@ auto DrmDisplayPipeline::GetUsablePlanes()
   std::vector<std::shared_ptr<BindingOwner<DrmPlane>>> planes;
   planes.emplace_back(primary_plane);
 
-  static bool use_overlay_planes = ReadUseOverlayProperty();
+  const static bool kUseOverlayPlanes = ReadUseOverlayProperty();
 
   if (use_overlay_planes) {
     int32_t planes_num = device->planes_num_ - 1;
+
+  if (kUseOverlayPlanes) {
+
     for (const auto &plane : device->GetPlanes()) {
       if (plane->IsCrtcSupported(*crtc->Get())) {
         if (plane->GetType() == DRM_PLANE_TYPE_OVERLAY) {
@@ -218,6 +221,11 @@ auto DrmDisplayPipeline::AtomicDisablePipeline() -> int {
   }
 
   return 0;
+}
+
+DrmDisplayPipeline::~DrmDisplayPipeline() {
+  if (atomic_state_manager)
+    atomic_state_manager->StopThread();
 }
 
 }  // namespace android

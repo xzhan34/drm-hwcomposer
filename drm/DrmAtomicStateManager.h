@@ -14,16 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_DRM_ATOMIC_STATE_MANAGER_H_
-#define ANDROID_DRM_ATOMIC_STATE_MANAGER_H_
+#pragma once
 
 #include <pthread.h>
 
-#include <functional>
 #include <memory>
 #include <optional>
-#include <sstream>
-#include <tuple>
 
 #include "compositor/DrmKmsPlan.h"
 #include "compositor/LayerData.h"
@@ -41,15 +37,20 @@ struct AtomicCommitArgs {
   std::optional<bool> active;
   std::shared_ptr<DrmKmsPlan> composition;
   bool color_adjustment = false;
+  std::shared_ptr<drm_color_ctm> color_matrix;
+
+  std::shared_ptr<DrmFbIdHandle> writeback_fb;
+  SharedFd writeback_release_fence;
 
   /* out */
-  UniqueFd out_fence;
+  SharedFd out_fence;
 
   /* helpers */
-  auto HasInputs() -> bool {
+  auto HasInputs() const -> bool {
     return display_mode || active || composition;
   }
 };
+
 
 struct gamma_colors {
   float red;
@@ -85,17 +86,11 @@ class PresentTrackerThread {
 };
 
 class DrmAtomicStateManager {
-  friend class PresentTrackerThread;
-
  public:
-  explicit DrmAtomicStateManager(DrmDisplayPipeline *pipe)
-      : pipe_(pipe),
-        ptt_(std::make_unique<PresentTrackerThread>(this).release()){};
+  static auto CreateInstance(DrmDisplayPipeline *pipe)
+      -> std::shared_ptr<DrmAtomicStateManager>;
 
-  DrmAtomicStateManager(const DrmAtomicStateManager &) = delete;
-  ~DrmAtomicStateManager() {
-    ptt_->Stop();
-  }
+  ~DrmAtomicStateManager() = default;
 
   auto ExecuteAtomicCommit(AtomicCommitArgs &args) -> int;
   auto ActivateDisplayUsingDPMS() -> int;
@@ -111,7 +106,16 @@ class DrmAtomicStateManager {
                                     uint32_t brightness_c) ->int;
   auto ApplyPendingLUT(struct drm_color_lut *lut,  uint64_t lut_size) -> int;
 
+  void StopThread() {
+    {
+      const std::unique_lock lock(mutex_);
+      exit_thread_ = true;
+    }
+    cv_.notify_all();
+  }
+
  private:
+  DrmAtomicStateManager() = default;
   auto CommitFrame(AtomicCommitArgs &args) -> int;
 
   struct KmsState {
@@ -122,6 +126,7 @@ class DrmAtomicStateManager {
     std::vector<std::shared_ptr<DrmFbIdHandle>> used_framebuffers;
 
     DrmModeUserPropertyBlobUnique mode_blob;
+    DrmModeUserPropertyBlobUnique ctm_blob;
 
     int release_fence_pt_index{};
 
@@ -137,7 +142,7 @@ class DrmAtomicStateManager {
     };
   }
 
-  DrmDisplayPipeline *const pipe_;
+  DrmDisplayPipeline *pipe_{};
 
   void CleanupPriorFrameResources();
   int64_t FloatToFixedPoint(float value);
@@ -149,15 +154,16 @@ class DrmAtomicStateManager {
   float TransformGamma(float value, float gamma);
 
 
-  /* Present (swap) tracking */
-  PresentTrackerThread *ptt_;
   KmsState staged_frame_state_;
-  UniqueFd last_present_fence_;
+  SharedFd last_present_fence_;
   int frames_staged_{};
   int frames_tracked_{};
   bool hdr_mdata_set_ = false;
+
+  void ThreadFn(const std::shared_ptr<DrmAtomicStateManager> &dasm);
+  std::condition_variable cv_;
+  std::mutex mutex_;
+  bool exit_thread_{};
 };
 
 }  // namespace android
-
-#endif  // ANDROID_DRM_DISPLAY_COMPOSITOR_H_

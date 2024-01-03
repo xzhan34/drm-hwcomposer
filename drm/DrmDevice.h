@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_DRM_H_
-#define ANDROID_DRM_H_
+#pragma once
 
 #include <cstdint>
 #include <map>
@@ -24,8 +23,7 @@
 #include "DrmConnector.h"
 #include "DrmCrtc.h"
 #include "DrmEncoder.h"
-#include "DrmFbImporter.h"
-#include "utils/UniqueFd.h"
+#include "utils/fd.h"
 
 #define DRM_FORMAT_NV12_Y_TILED_INTEL fourcc_code('9', '9', '9', '6')
 #define HWC_DRM_BO_MAX_PLANES 4
@@ -42,8 +40,8 @@ class DrmDevice {
   static auto CreateInstance(std::string const &path, ResourceManager *res_man)
       -> std::unique_ptr<DrmDevice>;
 
-  auto GetFd() const {
-    return fd_.Get();
+  auto &GetFd() const {
+    return fd_;
   }
 
   auto &GetResMan() {
@@ -51,6 +49,8 @@ class DrmDevice {
   }
 
   auto GetConnectors() -> const std::vector<std::unique_ptr<DrmConnector>> &;
+  auto GetWritebackConnectors()
+      -> const std::vector<std::unique_ptr<DrmConnector>> &;
   auto GetPlanes() -> const std::vector<std::unique_ptr<DrmPlane>> &;
   auto GetCrtcs() -> const std::vector<std::unique_ptr<DrmCrtc>> &;
   auto GetEncoders() -> const std::vector<std::unique_ptr<DrmEncoder>> &;
@@ -114,11 +114,15 @@ class DrmDevice {
 
   static auto IsKMSDev(const char *path) -> bool;
 
+<<<<<<< HEAD
   UniqueFd fd_;
   uint32_t mode_id_ = 0;
 
   bool is_hdr_supported_ = false;
   bool hdr_device_checked_ = false;
+=======
+  SharedFd fd_;
+>>>>>>> fd/main
 
   std::vector<std::unique_ptr<DrmConnector>> connectors_;
   std::vector<std::unique_ptr<DrmConnector>> writeback_connectors_;
@@ -141,5 +145,3 @@ public:
   bool color_adjustment_enabling_;
 };
 }  // namespace android
-
-#endif  // ANDROID_DRM_H_

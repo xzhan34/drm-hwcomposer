@@ -17,6 +17,8 @@
 #ifndef ANDROID_DRM_MODE_H_
 #define ANDROID_DRM_MODE_H_
 #include <cstdint>
+#pragma once
+
 #include <xf86drmMode.h>
 
 #include <cstdio>
@@ -40,23 +42,22 @@ class DrmMode {
 
   uint32_t clock() const;
 
-  uint16_t h_display() const;
-  uint16_t h_sync_start() const;
-  uint16_t h_sync_end() const;
-  uint16_t h_total() const;
-  uint16_t h_skew() const;
+  auto &GetRawMode() const {
+    return mode_;
+  }
 
-  uint16_t v_display() const;
-  uint16_t v_sync_start() const;
-  uint16_t v_sync_end() const;
-  uint16_t v_total() const;
-  uint16_t v_scan() const;
-  float v_refresh() const;
+  auto GetVRefresh() const {
+    if (mode_.clock == 0) {
+      return float(mode_.vrefresh);
+    }
+    // Always recalculate refresh to report correct float rate
+    return static_cast<float>(mode_.clock) /
+           (float)(mode_.vtotal * mode_.htotal) * 1000.0F;
+  }
 
-  uint32_t flags() const;
-  uint32_t type() const;
-
-  std::string name() const;
+  auto GetName() const {
+    return std::string(mode_.name) + "@" + std::to_string(GetVRefresh());
+  }
 
   auto CreateModeBlob(const DrmDevice &drm) -> DrmModeUserPropertyBlobUnique;
 
@@ -82,6 +83,9 @@ class DrmMode {
   uint32_t type_ = 0;
 
   std::string name_;
+
+  drmModeModeInfo mode_;
+
 };
 }  // namespace android
 

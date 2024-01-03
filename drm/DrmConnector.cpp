@@ -64,7 +64,7 @@ static bool GetConnectorProperty(const DrmDevice &dev,
 auto DrmConnector::CreateInstance(DrmDevice &dev, uint32_t connector_id,
                                   uint32_t index)
     -> std::unique_ptr<DrmConnector> {
-  auto conn = MakeDrmModeConnectorUnique(dev.GetFd(), connector_id);
+  auto conn = MakeDrmModeConnectorUnique(*dev.GetFd(), connector_id);
   if (!conn) {
     ALOGE("Failed to get connector %d", connector_id);
     return {};
@@ -124,18 +124,17 @@ int DrmConnector::UpdateEdidProperty() {
 }
 
 auto DrmConnector::GetEdidBlob() -> DrmModePropertyBlobUnique {
-  uint64_t blob_id = 0;
-  int ret = UpdateEdidProperty();
+  auto ret = UpdateEdidProperty();
   if (ret != 0) {
     return {};
   }
 
-  std::tie(ret, blob_id) = GetEdidProperty().value();
-  if (ret != 0) {
+  auto blob_id = GetEdidProperty().GetValue();
+  if (!blob_id) {
     return {};
   }
 
-  return MakeDrmModePropertyBlobUnique(drm_->GetFd(), blob_id);
+  return MakeDrmModePropertyBlobUnique(*drm_->GetFd(), *blob_id);
 }
 
 bool DrmConnector::IsInternal() const {
@@ -190,7 +189,7 @@ std::string DrmConnector::GetName() const {
 
 int DrmConnector::UpdateModes() {
   drm_->reset_mode_id();
-  auto conn = MakeDrmModeConnectorUnique(drm_->GetFd(), GetId());
+  auto conn = MakeDrmModeConnectorUnique(*drm_->GetFd(), GetId());
   if (!conn) {
     ALOGE("Failed to get connector %d", GetId());
     return -ENODEV;
@@ -286,6 +285,7 @@ int DrmConnector::UpdateModes() {
       new_modes.push_back(m);
       ALOGD("CONNECTOR:%d select one mode, id = %d, name = %s, refresh = %f",
         GetId(), m.id(), m.name().c_str(), m.v_refresh());
+      modes_.emplace_back(&connector_->modes[i]);
     }
     if (!preferred_mode_found &&
         (new_modes.back().type() & DRM_MODE_TYPE_PREFERRED)) {

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef RESOURCEMANAGER_H
-#define RESOURCEMANAGER_H
+#pragma once
 
 #include <cstring>
+#include <mutex>
 
 #include "DrmDevice.h"
 #include "DrmDisplayPipeline.h"
@@ -32,6 +32,18 @@ class PipelineToFrontendBindingInterface {
   virtual bool BindDisplay(DrmDisplayPipeline *);
   virtual bool UnbindDisplay(DrmDisplayPipeline *);
   virtual HwcDisplay * GetDisplay(DrmDisplayPipeline *pipeline);
+
+
+enum class CtmHandling {
+  kDrmOrGpu,    /* Handled by DRM is possible, otherwise by GPU */
+  kDrmOrIgnore, /* Handled by DRM is possible, otherwise displayed as is */
+};
+
+class PipelineToFrontendBindingInterface {
+ public:
+  virtual ~PipelineToFrontendBindingInterface() = default;
+  virtual bool BindDisplay(std::shared_ptr<DrmDisplayPipeline>);
+  virtual bool UnbindDisplay(std::shared_ptr<DrmDisplayPipeline>);
   virtual void FinalizeDisplayBinding();
 };
 
@@ -43,7 +55,7 @@ class ResourceManager {
   ResourceManager &operator=(const ResourceManager &) = delete;
   ResourceManager(const ResourceManager &&) = delete;
   ResourceManager &&operator=(const ResourceManager &&) = delete;
-  ~ResourceManager();
+  ~ResourceManager() = default;
 
   void Init();
 
@@ -53,9 +65,16 @@ class ResourceManager {
     return scale_with_gpu_;
   }
 
+  auto &GetCtmHandling() const {
+    return ctm_handling_;
+  }
+
   auto &GetMainLock() {
     return main_lock_;
   }
+
+  auto GetVirtualDisplayPipeline() -> std::shared_ptr<DrmDisplayPipeline>;
+  auto GetWritebackConnectorsCount() -> uint32_t;
 
   static auto GetTimeMonotonicNs() -> int64_t;
 
@@ -66,13 +85,15 @@ class ResourceManager {
 
   std::vector<std::unique_ptr<DrmDevice>> drms_;
 
+  // Android properties:
   bool scale_with_gpu_{};
+  CtmHandling ctm_handling_{};
 
-  UEventListener uevent_listener_;
+  std::shared_ptr<UEventListener> uevent_listener_;
 
-  std::mutex main_lock_;
+  std::recursive_mutex main_lock_;
 
-  std::map<DrmConnector *, std::unique_ptr<DrmDisplayPipeline>>
+  std::map<DrmConnector *, std::shared_ptr<DrmDisplayPipeline>>
       attached_pipelines_;
 
   PipelineToFrontendBindingInterface *const frontend_interface_;
@@ -80,5 +101,3 @@ class ResourceManager {
   bool initialized_{};
 };
 }  // namespace android
-
-#endif  // RESOURCEMANAGER_H

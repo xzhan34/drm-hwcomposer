@@ -70,7 +70,7 @@ auto BufferInfoMaliMeson::GetBoInfo(buffer_handle_t handle)
   if (!(hnd->usage & GRALLOC_USAGE_HW_FB))
     return {};
 
-  uint32_t fmt = ConvertHalFormatToDrm(hnd->req_format);
+  const uint32_t fmt = ConvertHalFormatToDrm(hnd->req_format);
   if (fmt == DRM_FORMAT_INVALID)
     return {};
 
@@ -86,7 +86,7 @@ auto BufferInfoMaliMeson::GetBoInfo(buffer_handle_t handle)
   bi.pitches[0] = hnd->byte_stride;
   bi.offsets[0] = 0;
 
-  return {};
+  return bi;
 }
 
 }  // namespace android
